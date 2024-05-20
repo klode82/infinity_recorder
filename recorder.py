@@ -129,6 +129,7 @@ def _joinChunks(chunkDirPath, files):
     infoFile = files[0].split(".")
     infoData = infoFile[1]
     infoDateTime = re.findall(regExDT, infoData)
+    print(infoDateTime)
     audioFolder = infoData[0:8]
 
 
