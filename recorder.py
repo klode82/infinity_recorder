@@ -130,6 +130,7 @@ def _joinChunks(chunkDirPath, files):
 
     audioFileName = infoData + ".ogg"
     audioFile = None
+    _aud = None
     for f in files:
         if audioFile is None:
             audioFile = AudioSegment.from_file(chunkDirPath + f, format="wav")
@@ -144,6 +145,8 @@ def _joinChunks(chunkDirPath, files):
 
     for f in files:
         os.remove(chunkDirPath + f)
+    del audioFile
+    del _aud
 
     
 
