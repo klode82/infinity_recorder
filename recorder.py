@@ -9,11 +9,12 @@ from threading import Thread
 from loguru import logger
 import soundfile as sf
 import os
-import pyaudio
+#import pyaudio
   
 config = {
     "freq": 48000,
     "chunk_duration": 30,
+    "chunk_folder":"./chunks/",
     "dest_folder":"./audio/",
     "prefix_name":"record_",
     "extension":"ogg",
@@ -47,27 +48,34 @@ def recordChunk():
 
 def saveChunk():
     saving_thread = Thread(
-        target=_save,
+        target=_saveChunk,
         daemon=True,
     )
     saving_thread.start()
 
+'''def saveRecords():
+    saving_thread = Thread(
+        target=_saveRecords,
+        daemon=True,
+    )
+    saving_thread.start()
+'''
 
-def _save():
+def _saveChunk():
     while True:
         if len(chunks) > 0:
             saved = False
             while saved is False:
                 chunk = chunks[len(chunks)-1]
-                filename = config["prefix_name"] + chunk["init"] + "." + config["extension"]
+                filename = "_chunk" + chunk["init"] + ".wav"
                 subfolder = chunk["init"][0:8]
-                if not os.path.isdir(config["dest_folder"] + subfolder):
+                if not os.path.isdir(config["chunk_folder"] + subfolder):
                     os.mkdir(config["dest_folder"] + subfolder)
 
-                logger.info(f'Saving {filename}...')
+                logger.info(f'Chunk Saving {filename}...')
                 
                 try:
-                    sf.write(config["dest_folder"] + subfolder + "/" + filename, chunk["data"], config["freq"])
+                    sf.write(config["chunk_folder"] + subfolder + "/" + filename, chunk["data"], config["freq"])
                     saved = True
                     chunks.pop()
                 except Exception as e:
@@ -83,6 +91,7 @@ def main():
     try:
         logger.info("Starting recording...")
         saveChunk()
+        #saveRecords()
         while True:
             recordChunk()
     except KeyboardInterrupt:
