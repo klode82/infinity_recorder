@@ -9,6 +9,7 @@ from threading import Thread
 from loguru import logger
 import soundfile as sf
 import os
+from pyhub import AudioSegment
 #import pyaudio
   
 config = {
@@ -53,13 +54,15 @@ def saveChunk():
     )
     saving_thread.start()
 
-'''def saveRecords():
+def saveRecords():
     saving_thread = Thread(
         target=_saveRecords,
         daemon=True,
     )
     saving_thread.start()
-'''
+
+
+
 
 def _saveChunk():
     while True:
@@ -67,7 +70,7 @@ def _saveChunk():
             saved = False
             while saved is False:
                 chunk = chunks[len(chunks)-1]
-                filename = "_chunk" + chunk["init"] + ".wav"
+                filename = "chunk." + chunk["init"] + ".wav"
                 subfolder = chunk["init"][0:8]
                 if not os.path.isdir(config["chunk_folder"] + subfolder):
                     os.mkdir(config["dest_folder"] + subfolder)
@@ -86,12 +89,30 @@ def _saveChunk():
         logger.info("Memory: " + GetHumanReadable(memUsed[1]))
 
 
+
+def _sortdir(directory):
+    items = os.listdir(directory)
+    sorted_items = sorted(items)
+    return sorted_items
+
+
+
+def _saveRecords():
+    while True:
+        chunksDir = os.listdir(config["chunk_folder"])
+        chunksDir = sorted(chunksDir)
+        print(chunksDir)
+        time.sleep(30)
+
+
+
+
 def main():
     tracemalloc.start()
     try:
         logger.info("Starting recording...")
         saveChunk()
-        #saveRecords()
+        saveRecords()
         while True:
             recordChunk()
     except KeyboardInterrupt:
