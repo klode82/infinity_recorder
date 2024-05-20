@@ -128,7 +128,7 @@ def _joinChunks(chunkDirPath, files):
     infoData = infoFile[1]
     audioFolder = infoData[0:8]
 
-    audioFileName = infoData[1] + ".ogg"
+    audioFileName = infoData + ".ogg"
     audioFile = None
     for f in files:
         if audioFile is None:
