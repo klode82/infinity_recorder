@@ -1,0 +1,9 @@
+cffi==1.16.0
+loguru==0.7.2
+numpy==1.26.4
+PyAudio==0.2.14
+pycparser==2.22
+scipy==1.13.0
+sounddevice==0.4.6
+soundfile==0.12.1
+wavio==0.0.8
