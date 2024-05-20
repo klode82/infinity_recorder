@@ -135,7 +135,7 @@ def _joinChunks(chunkDirPath, files):
             audioFile = AudioSegment.from_file(chunkDirPath + f, format="wav")
         else:
             _aud = AudioSegment.from_file(chunkDirPath + f, format="wav")
-        audioFile = audioFile + _aud
+            audioFile = audioFile + _aud
 
     logger.info("Saving file " + audioFileName + " in " + audioFolder + "...")
     if not os.path.isdir(config["dest_folder"] + audioFolder):
