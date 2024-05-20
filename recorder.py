@@ -73,7 +73,7 @@ def _saveChunk():
                 filename = "chunk." + chunk["init"] + ".wav"
                 subfolder = chunk["init"][0:8]
                 if not os.path.isdir(config["chunk_folder"] + subfolder):
-                    os.mkdir(config["chunk_folder"] + subfolder)
+                    os.makeidrs(config["chunk_folder"] + subfolder, exist_ok=True)
 
                 logger.info(f'Chunk Saving {filename}...')
                 
@@ -139,7 +139,7 @@ def _joinChunks(chunkDirPath, files):
 
     logger.info("Saving file " + audioFileName + " in " + audioFolder + "...")
     if not os.path.isdir(config["dest_folder"] + audioFolder):
-        os.mkdir(config["dest_folder"] + audioFolder)
+        os.makedirs(config["dest_folder"] + audioFolder, exist_ok=True)
     file_handle = audioFile.export(config["dest_folder"] + audioFolder + "/" + audioFileName, format="ogg")
 
     for f in files:
