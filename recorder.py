@@ -9,7 +9,7 @@ from threading import Thread
 from loguru import logger
 import soundfile as sf
 import os
-from pyhub import AudioSegment
+from pydub import AudioSegment
 #import pyaudio
   
 config = {
@@ -73,7 +73,7 @@ def _saveChunk():
                 filename = "chunk." + chunk["init"] + ".wav"
                 subfolder = chunk["init"][0:8]
                 if not os.path.isdir(config["chunk_folder"] + subfolder):
-                    os.mkdir(config["dest_folder"] + subfolder)
+                    os.mkdir(config["chunk_folder"] + subfolder)
 
                 logger.info(f'Chunk Saving {filename}...')
                 
@@ -99,10 +99,52 @@ def _sortdir(directory):
 
 def _saveRecords():
     while True:
-        chunksDir = os.listdir(config["chunk_folder"])
+        now = datetime.now()
+        nowFolder = now.strftime("%Y%m%d")
+        chunksDir = _sortdir(config["chunk_folder"])
         chunksDir = sorted(chunksDir)
-        print(chunksDir)
+
+        for cdir in chunksDir:
+            chunkDirPath = config["chunk_folder"] + cdir
+            chunkFiles = _sortdir(chunkDirPath)
+            if len(chunkFiles) == 0 and cdir != nowFolder:
+                os.removedirs(chunkDirPath)
+                time.sleep(10)
+                break
+            
+            if len(chunkFiles) > 10:
+                blockFiles = chunkFiles[slice(10)]
+                _joinChunks(chunkDirPath, blockFiles)
+            else:
+                if cdir != nowFolder :
+                    _joinChunks(chunkDirPath, chunkFiles)
+
         time.sleep(30)
+
+
+def _joinChunks(chunkDirPath, files):
+    infoFile = files[0].split(".")
+    infoData = infoFile[1]
+    audioFolder = infoData[0:8]
+
+    audioFileName = infoData[1] + ".ogg"
+    audioFile = None
+    for f in files:
+        if audioFile is None:
+            audioFile = AudioSegment.from_file(chunkDirPath + f, format="wav")
+        else:
+            _aud = AudioSegment.from_file(chunkDirPath + f, format="wav")
+        audioFile = audioFile + _aud
+
+    logger.info("Saving file " + audioFileName + " in " + audioFolder + "...")
+    if not os.path.isdir(config["dest_folder"] + audioFolder):
+        os.mkdir(config["dest_folder"] + audioFolder)
+    file_handle = audioFile.export(config["dest_folder"] + audioFolder + "/" + audioFileName, format="ogg")
+
+    for f in files:
+        os.remove(chunkDirPath + f)
+
+    
 
 
 
