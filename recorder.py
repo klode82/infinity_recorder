@@ -128,8 +128,8 @@ def _joinChunks(chunkDirPath, files):
     chunkDirPath = chunkDirPath + "/"
     infoFile = files[0].split(".")
     infoData = infoFile[1]
-    infoDateTime = re.findall(regExDT, infoData)
-    print(infoDateTime)
+    infoRegEx = re.findall(regExDT, infoData)
+    infoDateTime = infoRegEx[0]
     audioFolder = infoData[0:8]
 
 
