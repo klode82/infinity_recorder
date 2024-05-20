@@ -132,7 +132,12 @@ def _joinChunks(chunkDirPath, files):
     audioFolder = infoData[0:8]
 
 
-    audioFileName = infoDateTime[0] + "-" + infoDateTime[1] + "-" + infoDateTime[2] + "_" + infoDateTime[3] + "-" + infoDateTime[4] + "-" + infoDateTime[5] + ".ogg"
+    audioFileName = str(infoDateTime[0]) + "-" + \
+            str(infoDateTime[1]) + "-" + \
+            str(infoDateTime[2]) + "_" + \
+            str(infoDateTime[3]) + "-" + \
+            str(infoDateTime[4]) + "-" + \
+            str(infoDateTime[5]) + ".ogg"
     audioFile = None
     _aud = None
     for f in files:
