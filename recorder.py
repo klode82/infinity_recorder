@@ -9,6 +9,7 @@ from threading import Thread
 from loguru import logger
 import soundfile as sf
 import os
+import re
 from pydub import AudioSegment
 #import pyaudio
   
@@ -24,6 +25,7 @@ config = {
 
 chunks = []
 interrupt = False
+regExDT = "^([0-9]{4})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})$"
 
 
 
@@ -126,9 +128,11 @@ def _joinChunks(chunkDirPath, files):
     chunkDirPath = chunkDirPath + "/"
     infoFile = files[0].split(".")
     infoData = infoFile[1]
+    infoDateTime = re.findall(regExDT, infoData)
     audioFolder = infoData[0:8]
 
-    audioFileName = infoData + ".ogg"
+
+    audioFileName = infoDateTime[0] + "-" + infoDateTime[1] + "-" + infoDateTime[2] + "_" + infoDateTime[3] + "-" + infoDateTime[4] + "-" + infoDateTime[5] + ".ogg"
     audioFile = None
     _aud = None
     for f in files:
