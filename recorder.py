@@ -123,6 +123,7 @@ def _saveRecords():
 
 
 def _joinChunks(chunkDirPath, files):
+    chunkDirPath = chunkDirPath + "/"
     infoFile = files[0].split(".")
     infoData = infoFile[1]
     audioFolder = infoData[0:8]
