@@ -1,0 +1,12 @@
+[Unit]
+Description=Mega Cloud Connection
+
+[Service]
+User=root
+ExecStart=/usr/bin/rclone mount Mega:/MEDIA/iRec /aurigalab/megacloud/iRec --vfs-cache-mode writes --allow-other
+ExecStop=/usr/bin/fusemount -u /aurigalab/megacloud/iRec
+Restart=Always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

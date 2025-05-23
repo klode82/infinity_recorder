@@ -1,6 +1,5 @@
 import sounddevice as sd
 import numpy as np
-import scipy.signal
 import soundfile as sf
 from pydub import AudioSegment
 import threading
@@ -8,6 +7,10 @@ import queue
 import time
 import os
 import json
+import traceback
+import noisereduce as nr
+from pathlib import Path
+
 from datetime import datetime
 
 # Parametri
@@ -29,14 +32,20 @@ amplify_factor = 10 ** (AMPLIFY_DB / 20)
 # Queue per comunicazione tra thread
 file_queue = queue.Queue()
 
+noise_sample = None
 
-def record_noise_profile(device_idx, duration=5):
-    print("[Noise] Registrazione rumore ambiente...")
-    noise = sd.rec(int(duration * FS), samplerate=FS, channels=1, dtype='float32', device=device_idx)
+
+
+def record_noise_sample(device_idx, duration=5):
+    """Registra un sample di rumore di fondo per duration secondi"""
+    global noise_sample
+    print(f"[NoiseSample] Registrazione rumore di fondo per {duration}s...")
+    recording = sd.rec(int(duration * FS), samplerate=FS, channels=1, dtype='float32', device=device_idx)
     sd.wait()
-    noise = noise.flatten()
-    print("[Noise] Rumore registrato.")
-    return noise
+    noise_sample = recording.flatten()  # vettore mono
+    print("[NoiseSample] Registrazione rumore completata")
+
+
 
 def record_worker(device_idx, q):
     """Registra WAV stereo da device, salva file da 5s e mette in coda il path"""
@@ -49,6 +58,9 @@ def record_worker(device_idx, q):
         sf.write(filename, recording, FS, subtype='FLOAT')
         q.put(filename)
         print(f"[Recorder] Registrazione salvata e messa in coda: {filename}")
+
+
+
 
 def record_worker_stream(device_idx, q):
     """Registra continuamente in streaming e salva blocchi da 5s"""
@@ -91,51 +103,18 @@ def record_worker_stream(device_idx, q):
 
             time.sleep(0.1)  # evita CPU spinning
 
-def fft_highpass_filter_block(data, fs, cutoff=100):
-    """Filtro passa-alto FFT su blocco"""
-    N = len(data)
-    fft_data = np.fft.rfft(data)
-    freqs = np.fft.rfftfreq(N, 1/fs)
-    mask = freqs > cutoff
-    fft_data_filtered = fft_data * mask
-    filtered = np.fft.irfft(fft_data_filtered, n=N)
-    return filtered.astype(np.float32), fft_data_filtered.real.tolist()  # restituiamo anche lo spettro reale per storico
 
 
-def noise_reduction_fft(signal_block, noise_profile, reduction_factor=0.5):
-    """
-    Riduce rumore ambientale sottraendo spettro rumore da segnale
-    signal_block, noise_profile: array 1D float32
-    reduction_factor: quanto ridurre il rumore (0=no riduzione, 1=massima)
-    """
-    # FFT segnale e rumore
-    fft_signal = np.fft.rfft(signal_block)
-    fft_noise = np.fft.rfft(noise_profile)
-
-    # Moduli (magnitudo)
-    mag_signal = np.abs(fft_signal)
-    mag_noise = np.abs(fft_noise)
-
-    # Fasi
-    phase_signal = np.angle(fft_signal)
-
-    # Sottrazione con saturazione a zero (non negativo)
-    mag_clean = mag_signal - reduction_factor * mag_noise
-    mag_clean = np.clip(mag_clean, 0, None)
-
-    # Ricostruzione spettro complesso con fase originale
-    fft_clean = mag_clean * np.exp(1j * phase_signal)
-
-    # Inversa FFT
-    clean_signal = np.fft.irfft(fft_clean)
-
-    # Normalizza o mantieni dtype
-    return clean_signal.astype(signal_block.dtype)
 
 
-def process_worker(q, noise_profile):
+
+
+# Precarica modello DEMUCS fuori dal ciclo per efficienza
+
+def process_worker(q):
     """Consuma file WAV, filtra, amplifica e salva gruppi da 10 minuti in OGG"""
     buffer_blocks = []
+    file_blocks = []
     block_count = 0
     group_start_time = None
 
@@ -151,11 +130,25 @@ def process_worker(q, noise_profile):
             # Estrai canale scelto
             mono = data[:, CHANNEL_TO_KEEP]
 
-            # Riduzione rumore FFT
-            filtered = noise_reduction_fft(mono, noise_profile, reduction_factor=0.6)
+            # --- Riduzione rumore AI con DEMUCS ---
+            
+            if noise_sample is None:
+                print("[Processor] NOISE SAMPLE non disponibile, salto riduzione rumore")
+                filtered = mono
+            else:
+                filtered = nr.reduce_noise(
+                    y=mono, 
+                    y_noise=noise_sample, 
+                    sr=fs, 
+                    prop_decrease=0.6, 
+                    n_std_thresh_stationary=2.0,
+                    thresh_n_mult_nonstationary=3,  # soglia più alta per rumore non stazionario
+                    # eventualmente aumenta un po' il smoothing
+                    freq_mask_smooth_hz=600,
+                    time_mask_smooth_ms=70)
 
             # Amplifica
-            filtered *= amplify_factor
+            filtered = filtered * amplify_factor
 
             # Normalizza per evitare clipping
             max_val = np.max(np.abs(filtered))
@@ -164,6 +157,7 @@ def process_worker(q, noise_profile):
 
             # Aggiungi blocco al buffer
             buffer_blocks.append(filtered)
+            file_blocks.append(filename)
             block_count += 1
 
             # Imposta il tempo iniziale per il nome file del gruppo
@@ -181,24 +175,40 @@ def process_worker(q, noise_profile):
 
                 # Converti in OGG
                 audio_segment = AudioSegment.from_wav(wav_group_path)
-                ogg_path = os.path.join(PROCESSED_DIR, f"group_{group_start_time}.ogg")
-                audio_segment.export(ogg_path, format="ogg")
+
+                # Preparazione cartella di destinazione con la data odierna
+                destFolder = os.path.join(PROCESSED_DIR, datetime.now().strftime("%Y%m%d"))
+                Path(destFolder).mkdir(parents=True,exist_ok=True)
+
+                ogg_path = os.path.join(destFolder, f"group_{group_start_time}.m4a")
+                audio_segment.export(ogg_path, format="ipod")
+                
                 print(f"[Processor] Gruppo da 10 minuti salvato: {ogg_path}")
 
                 # Pulizia temporanei
                 os.remove(wav_group_path)
 
+                # Pulizia AudioBlocks
+                for f in file_blocks:
+                    try:
+                        os.remove(f)
+                    except:
+                        print(f"Impossibile eliminare il file {f}")
+
                 # Reset buffer
                 buffer_blocks = []
+                file_blocks = []
                 block_count = 0
                 group_start_time = None
 
         except Exception as e:
             print(f"[Processor] Errore durante l'elaborazione: {e}")
+            traceback.print_exc()
 
         finally:
             q.task_done()
-            
+
+
 
 def find_device_index(name_substring):
     devices = sd.query_devices()
@@ -207,14 +217,17 @@ def find_device_index(name_substring):
             return i
     raise RuntimeError(f"Device audio contenente '{name_substring}' non trovato")
 
+
+
+
 def main():
     device_idx = find_device_index(AUDIODEVICE)
     print(f"Device audio trovato: {device_idx}")
 
-    noise_profile = record_noise_profile(device_idx)
+    record_noise_sample(device_idx)
 
     t1 = threading.Thread(target=record_worker_stream, args=(device_idx, file_queue), daemon=True)
-    t2 = threading.Thread(target=process_worker, args=(file_queue,noise_profile,), daemon=True)
+    t2 = threading.Thread(target=process_worker, args=(file_queue,), daemon=True)
 
     t1.start()
     t2.start()
