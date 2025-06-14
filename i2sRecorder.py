@@ -178,6 +178,7 @@ class i2sRecorder:
         amplifiedBoard = Pedalboard([
             Gain(gain_db=40)
         ])
+        print("Amplifying...")
         amplified = amplifiedBoard(data, self.FrameRate)
     
 
